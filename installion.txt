@@ -1,0 +1,235 @@
+Option A: Expo + Supabase (Postgres + Auth)
+0) Prereqs
+
+Node LTS, npm or pnpm
+
+Expo CLI: npm i -g expo
+
+1) Create the app
+npx create-expo-app rn-supa-app
+cd rn-supa-app
+npm i @supabase/supabase-js @react-native-async-storage/async-storage react-native-url-polyfill
+
+
+In Supabase: create a project → grab your Project URL and anon public key.
+
+2) Set up the Supabase client (with RN polyfills + session storage)
+
+Create src/lib/supabase.ts:
+
+// src/lib/supabase.ts
+import 'react-native-url-polyfill/auto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+// Use AsyncStorage so auth sessions persist in RN
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false },
+});
+
+
+Add Expo env vars in app.config.ts (or app.json):
+
+// app.config.ts
+export default {
+  expo: {
+    name: "rn-supa-app",
+    slug: "rn-supa-app",
+    extra: {},
+    plugins: [],
+    // RN-friendly public env vars:
+    experiments: { tsconfigPaths: true },
+    runtimeVersion: { policy: "appVersion" },
+    updates: { enabled: true },
+    ios: { supportsTablet: true },
+    android: {},
+    web: {},
+    // Put these in your dev env (e.g., .env) and forward via eas or env management
+    // For local dev, you can set process.env before running `expo start`
+  }
+}
+
+
+Run with:
+
+EXPO_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT.supabase.co" \
+EXPO_PUBLIC_SUPABASE_ANON_KEY="YOUR_ANON_KEY" \
+npx expo start
+
+3) Minimal navigation & auth state
+
+Install router (optional but nice):
+
+npm i expo-router
+
+
+In app/_layout.tsx:
+
+import { Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { supabase } from '../src/lib/supabase';
+import { Session } from '@supabase/supabase-js';
+
+export default function RootLayout() {
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name={session ? "home" : "login"} />
+    </Stack>
+  );
+}
+
+
+Create app/login.tsx:
+
+import { useState } from 'react';
+import { View, TextInput, Button, Text, Alert } from 'react-native';
+import { supabase } from '../src/lib/supabase';
+
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const signUp = async () => {
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) Alert.alert("Sign-up error", error.message);
+    else Alert.alert("Check your email to confirm!");
+  };
+
+  const signIn = async () => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) Alert.alert("Login error", error.message);
+  };
+
+  return (
+    <View style={{ padding: 24, gap: 12 }}>
+      <Text style={{ fontSize: 24, fontWeight: '600' }}>Welcome</Text>
+      <TextInput placeholder="email" autoCapitalize="none" value={email} onChangeText={setEmail} style={{ borderWidth: 1, padding: 12 }} />
+      <TextInput placeholder="password" secureTextEntry value={password} onChangeText={setPassword} style={{ borderWidth: 1, padding: 12 }} />
+      <Button title="Sign In" onPress={signIn} />
+      <Button title="Sign Up" onPress={signUp} />
+    </View>
+  );
+}
+
+
+Create app/home.tsx with realtime + CRUD:
+
+import { useEffect, useState } from 'react';
+import { View, Text, TextInput, Button, FlatList, Alert } from 'react-native';
+import { supabase } from '../src/lib/supabase';
+
+type Todo = { id: number; user_id: string; title: string; done: boolean; inserted_at: string };
+
+export default function Home() {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [title, setTitle] = useState('');
+
+  const load = async () => {
+    const { data, error } = await supabase
+      .from('todos')
+      .select('*')
+      .order('inserted_at', { ascending: false });
+    if (error) Alert.alert("Load error", error.message);
+    else setTodos(data || []);
+  };
+
+  const add = async () => {
+    if (!title.trim()) return;
+    const { error } = await supabase.from('todos').insert({ title });
+    if (error) Alert.alert("Insert error", error.message);
+    setTitle('');
+  };
+
+  const toggle = async (id: number, done: boolean) => {
+    const { error } = await supabase.from('todos').update({ done: !done }).eq('id', id);
+    if (error) Alert.alert("Update error", error.message);
+  };
+
+  const signOut = async () => { await supabase.auth.signOut(); };
+
+  useEffect(() => {
+    load();
+    // Realtime subscription
+    const channel = supabase
+      .channel('todos-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  return (
+    <View style={{ padding: 24, gap: 12 }}>
+      <Text style={{ fontSize: 20, fontWeight: '600' }}>Your Todos</Text>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <TextInput value={title} onChangeText={setTitle} placeholder="Add a todo"
+          style={{ borderWidth: 1, padding: 12, flex: 1 }} />
+        <Button title="Add" onPress={add} />
+      </View>
+      <FlatList
+        data={todos}
+        keyExtractor={(t) => String(t.id)}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        renderItem={({ item }) => (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderWidth: 1, padding: 12 }}>
+            <Text>{item.title} {item.done ? '✅' : ''}</Text>
+            <Button title={item.done ? "Undo" : "Done"} onPress={() => toggle(item.id, item.done)} />
+          </View>
+        )}
+      />
+      <Button title="Sign Out" onPress={signOut} />
+    </View>
+  );
+}
+
+4) Database schema (in Supabase SQL editor)
+create table public.todos (
+  id bigserial primary key,
+  user_id uuid references auth.users not null default auth.uid(),
+  title text not null,
+  done boolean not null default false,
+  inserted_at timestamp with time zone not null default now()
+);
+
+-- Enable Row Level Security
+alter table public.todos enable row level security;
+
+-- Policies: users can CRUD their own rows
+create policy "Individuals can view own todos"
+on public.todos for select
+using ( auth.uid() = user_id );
+
+create policy "Individuals can insert own todos"
+on public.todos for insert
+with check ( auth.uid() = user_id );
+
+create policy "Individuals can update own todos"
+on public.todos for update
+using ( auth.uid() = user_id );
+
+create policy "Individuals can delete own todos"
+on public.todos for delete
+using ( auth.uid() = user_id );
+
+
+With RLS on, every request is scoped to the logged-in user. This is your security layer—no ad-hoc API server required.
+
+5) Extras you’ll probably want
+
+OAuth (Google, GitHub): enable in Supabase Auth → replace signInWithPassword with signInWithOAuth({ provider: 'google' }).
+
+Offline: use local caching (e.g., WatermelonDB/SQLite) if you need robust offline writes; Supabase offers “realtime” but not CRDTs—design your sync strategy if needed.
+
+Edge Functions: add server logic without running your own server.
+
+File Uploads: use Supabase Storage with bucket-level policies.
