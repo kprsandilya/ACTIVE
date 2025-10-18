@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   ScrollView,
-  TouchableOpacity,
 } from 'react-native';
 import MapView, { Polygon, Marker, LatLng } from 'react-native-maps';
 import { supabase } from '../../src/lib/supabase';
@@ -23,13 +22,22 @@ type Field = {
   };
 };
 
+type FieldData = {
+  id: string;
+  field_id: string;
+  herbicide: string | null;
+  pests_seen: string[] | null;
+  created_at: string;
+};
+
 export default function FieldScreen() {
   const [points, setPoints] = useState<LatLng[]>([]);
   const [fieldName, setFieldName] = useState('');
   const [cropType, setCropType] = useState('');
   const [fields, setFields] = useState<Field[]>([]);
   const [selectedField, setSelectedField] = useState<Field | null>(null);
-  const [drawMode, setDrawMode] = useState(true); // true = drawing, false = selecting
+  const [selectedFieldData, setSelectedFieldData] = useState<FieldData[]>([]);
+  const [drawMode, setDrawMode] = useState(true);
 
   const router = useRouter();
 
@@ -41,9 +49,9 @@ export default function FieldScreen() {
   const handleMapPress = (event: any) => {
     const { coordinate } = event.nativeEvent;
     if (drawMode) {
-      // Add vertex only in draw mode
       setPoints([...points, coordinate]);
-      setSelectedField(null); // deselect any field while drawing
+      setSelectedField(null);
+      setSelectedFieldData([]);
     }
   };
 
@@ -90,9 +98,29 @@ export default function FieldScreen() {
     setFields(data || []);
   };
 
+  // Fetch field_data for a selected field
+  const fetchFieldData = async (fieldId: string) => {
+    const { data, error } = await supabase
+      .from<FieldData>('field_data')
+      .select('*')
+      .eq('field_id', fieldId);
+
+    if (error) {
+      console.log(error);
+      setSelectedFieldData([]);
+    } else {
+      setSelectedFieldData(data || []);
+    }
+  };
+
   useEffect(() => {
     fetchFields();
   }, []);
+
+  const handleSelectField = (field: Field) => {
+    setSelectedField(field);
+    fetchFieldData(field.id);
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -106,7 +134,6 @@ export default function FieldScreen() {
           longitudeDelta: 0.01,
         }}
       >
-        {/* Polygon being drawn */}
         {points.length > 0 && (
           <Polygon coordinates={points} fillColor="rgba(0,150,0,0.3)" strokeColor="green" />
         )}
@@ -114,7 +141,6 @@ export default function FieldScreen() {
           <Marker key={i} coordinate={p} />
         ))}
 
-        {/* Saved fields */}
         {fields.map(field => {
           const coords = field.geom.coordinates[0].map(c => ({
             latitude: c[1],
@@ -127,25 +153,32 @@ export default function FieldScreen() {
               fillColor={selectedField?.id === field.id ? 'rgba(255,165,0,0.4)' : 'rgba(0,0,255,0.3)'}
               strokeColor={selectedField?.id === field.id ? 'orange' : 'blue'}
               tappable
-              onPress={() => !drawMode && setSelectedField(field)}
+              onPress={() => !drawMode && handleSelectField(field)}
             />
           );
         })}
       </MapView>
 
-      {/* Details panel */}
       {selectedField && (
         <View style={styles.detailsPanel}>
           <ScrollView>
             <Text style={styles.detailTitle}>{selectedField.name}</Text>
             <Text>Crop Type: {selectedField.crop_type || 'N/A'}</Text>
             <Text>Field ID: {selectedField.id}</Text>
-            <Button title="Close" onPress={() => setSelectedField(null)} />
+            <Text style={{ marginTop: 8, fontWeight: '600' }}>Field Data:</Text>
+            {selectedFieldData.length === 0 && <Text>No field data yet.</Text>}
+            {selectedFieldData.map(fd => (
+              <View key={fd.id} style={{ marginBottom: 6 }}>
+                <Text>Herbicide: {fd.herbicide || 'N/A'}</Text>
+                <Text>Pests: {fd.pests_seen?.join(', ') || 'N/A'}</Text>
+                <Text>Recorded: {new Date(fd.created_at).toLocaleString()}</Text>
+              </View>
+            ))}
+            <Button title="Close" onPress={() => { setSelectedField(null); setSelectedFieldData([]); }} />
           </ScrollView>
         </View>
       )}
 
-      {/* Form & controls */}
       <View style={styles.form}>
         <View style={styles.buttonRow}>
           <Button
@@ -153,6 +186,7 @@ export default function FieldScreen() {
             onPress={() => {
               setDrawMode(!drawMode);
               setSelectedField(null);
+              setSelectedFieldData([]);
             }}
           />
         </View>
@@ -201,7 +235,7 @@ const styles = StyleSheet.create({
   },
   detailsPanel: {
     position: 'absolute',
-    bottom: 80, // raised above form
+    bottom: 80,
     left: 16,
     right: 16,
     backgroundColor: 'white',
@@ -212,7 +246,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 5,
-    maxHeight: 200,
+    maxHeight: 250,
   },
   detailTitle: {
     fontSize: 18,
