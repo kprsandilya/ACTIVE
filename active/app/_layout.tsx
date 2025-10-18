@@ -14,7 +14,11 @@ export default function RootLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name={session ? "home" : "login"} />
+      {session ? (
+        <Stack.Screen name="(tabs)" />
+      ) : (
+        <Stack.Screen name="login" />
+      )}
     </Stack>
   );
 }
