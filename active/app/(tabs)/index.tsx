@@ -166,8 +166,10 @@ function LandingScreenContent() {
         {!hasConversationStarted && (
           <View style={styles.welcomeContainer}>
             <Ionicons name="leaf-outline" size={48} color="#2E7D32" />
-            <Text style={styles.welcomeText}>Ask **ACTIVE** about your farm or livestock.</Text>
-            <Text style={styles.welcomeSubText}>E.g., "What's the best time to harvest my corn?"</Text>
+            <Text style={styles.welcomeText}>Ask **ACTIVE** for advice on your farm or livestock.</Text>
+            <Text style={styles.welcomeSubText}>
+              E.g., "Which fertilizer or pesticide would save me money for my crops?"  
+            </Text>
           </View>
         )}
 
