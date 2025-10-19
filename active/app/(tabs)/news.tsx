@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { supabase } from '../../src/lib/supabase';
 import {
   View,
   Text,
@@ -12,15 +13,61 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchNewsForRegion } from '../../src/lib/news';
+import { getCountryFromPolygon } from '../../src/lib/regionLocator'; // 👈 wherever you put the turf function
 
 export default function NewsScreen() {
   const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [userPolygons, setUserPolygons] = useState<any[]>([]);
+  const [loadingPolygons, setLoadingPolygons] = useState(true);
+  const [selectedRegion, setSelectedRegion] = useState<string>('United States'); // 👈 sensible default
 
-  const selectedRegion = 'Iowa';
-  const fallbackThumbnail = 'https://via.placeholder.com/150';
+  const getUserId = async (): Promise<string | null> => {
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id ?? null;
+  };
 
+  useEffect(() => {
+    const fetchPolygons = async () => {
+      setLoadingPolygons(true);
+      const userId = await getUserId();
+      if (!userId) return;
+
+      const { data, error } = await supabase
+        .from('fields')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Failed to load user polygons:', error);
+      } else if (data && data.length > 0) {
+        setUserPolygons(data);
+
+        // 👇 Extract first polygon's region name using your turf function
+        try {
+          const geom = data[0].geom; // PostGIS geometry object
+          const geojson = {
+            type: 'Feature',
+            geometry: geom,
+            properties: {},
+          } as GeoJSON.Feature;
+
+          const region = getCountryFromPolygon(geojson);
+          console.log('Detected region:', region);
+          setSelectedRegion(region || 'United States');
+        } catch (err) {
+          console.warn('Failed to determine region:', err);
+          setSelectedRegion('United States');
+        }
+      }
+      setLoadingPolygons(false);
+    };
+
+    fetchPolygons();
+  }, []);
+
+  // 👇 Fetch region-specific news when selectedRegion changes
   const fetchRegionNews = async (forceRefresh = false, isInitial = false) => {
     if (isInitial) setLoading(true);
     try {
@@ -34,17 +81,19 @@ export default function NewsScreen() {
     }
   };
 
+  useEffect(() => {
+    if (selectedRegion) {
+      fetchRegionNews(false, true);
+    }
+  }, [selectedRegion]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchRegionNews(true);
     setRefreshing(false);
-  }, []);
+  }, [selectedRegion]);
 
-  useEffect(() => {
-    fetchRegionNews(false, true);
-  }, []);
-
-  if (loading) {
+  if (loading || loadingPolygons) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -59,47 +108,38 @@ export default function NewsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <Text style={styles.region}>{selectedRegion} Agriculture News</Text>
+
         {articles.length === 0 ? (
           <Text style={styles.noNews}>No news found.</Text>
         ) : (
-          articles.map((article, i) => {
-            // Normalize thumbnail to a string URL
-            let thumbnailUri = fallbackThumbnail;
-            if (article.thumbnail) {
-              if (typeof article.thumbnail === 'string') {
-                thumbnailUri = article.thumbnail;
-              } else if (article.thumbnail['@_url']) {
-                thumbnailUri = article.thumbnail['@_url'];
-              } else if (article.thumbnail['#text']) {
-                thumbnailUri = article.thumbnail['#text'];
-              }
-            }
-
-            return (
-              <TouchableOpacity
-                key={i}
-                style={styles.card}
-                onPress={() => Linking.openURL(article.url)}
-                activeOpacity={0.8}
-              >
-                <Image source={{ uri: thumbnailUri }} style={styles.thumbnail} />
-                <View style={styles.textContainer}>
-                  <Text style={styles.title}>{article.title}</Text>
-                  <View style={styles.meta}>
-                    <Text style={styles.source}>{article.source}</Text>
-                    <Text style={styles.date}>
-                      {article.pubDate ? new Date(article.pubDate).toLocaleDateString() : ''}
-                    </Text>
-                  </View>
+          articles.map((article, i) => (
+            <TouchableOpacity
+              key={i}
+              style={styles.card}
+              onPress={() => Linking.openURL(article.url)}
+              activeOpacity={0.8}
+            >
+              <Image
+                source={require('../../assets/images/farm-placeholder.jpg')}
+                style={styles.thumbnail}
+              />
+              <View style={styles.textContainer}>
+                <Text style={styles.title}>{article.title}</Text>
+                <View style={styles.meta}>
+                  <Text style={styles.source}>{article.source}</Text>
+                  <Text style={styles.date}>
+                    {article.pubDate ? new Date(article.pubDate).toLocaleDateString() : ''}
+                  </Text>
                 </View>
-              </TouchableOpacity>
-            );
-          })
+              </View>
+            </TouchableOpacity>
+          ))
         )}
       </ScrollView>
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#f9f9f9' },

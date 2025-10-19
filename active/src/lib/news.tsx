@@ -5,7 +5,8 @@ import { XMLParser } from 'fast-xml-parser';
 export const fetchNewsForRegion = async (region: string, forceRefresh = false) => {
   const cacheKey = `news_${region}`;
   const cacheTTL = 12 * 60 * 60 * 1000; // 12 hours
-  const fallbackThumbnail = 'https://via.placeholder.com/150'; // default image
+  const placeholderThumbnail =
+    'https://www.publicdomainpictures.net/pictures/270000/velka/news-placeholder.jpg'; // permanent placeholder
 
   if (!forceRefresh) {
     const cached = await AsyncStorage.getItem(cacheKey);
@@ -16,7 +17,6 @@ export const fetchNewsForRegion = async (region: string, forceRefresh = false) =
   }
 
   try {
-    // Google News RSS for agriculture in the region
     const query = encodeURIComponent(`${region} agriculture`);
     const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
 
@@ -28,23 +28,19 @@ export const fetchNewsForRegion = async (region: string, forceRefresh = false) =
     const json = parser.parse(res.data);
 
     const items = json.rss.channel.item || [];
-    const articles = items.map((item: any) => {
-      // Attempt to get the thumbnail
-      let thumbnail = fallbackThumbnail;
-      if (item['media:thumbnail'] && item['media:thumbnail']['@_url']) {
-        thumbnail = item['media:thumbnail']['@_url'];
-      } else if (item['media:content'] && item['media:content']['@_url']) {
-        thumbnail = item['media:content']['@_url'];
-      }
-
-      return {
-        title: item.title,
-        url: item.link,
-        pubDate: item.pubDate,
-        source: item.source || '',
-        thumbnail, // always has a value now
-      };
-    });
+    const articles = items.slice(0, 20).map((item: any) => ({
+      title:
+        typeof item.title === 'string'
+          ? item.title
+          : item.title?.['#text'] || '',
+      source:
+        typeof item.source === 'string'
+          ? item.source
+          : item.source?.['#text'] || '',
+      url: item.link || '#',
+      pubDate: item.pubDate || '',
+      thumbnail: placeholderThumbnail, // always use placeholder
+    }));
 
     await AsyncStorage.setItem(
       cacheKey,
