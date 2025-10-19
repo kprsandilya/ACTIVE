@@ -166,12 +166,10 @@ export default function FieldScreen() {
             <Text>Crop Type: {selectedField.crop_type || 'N/A'}</Text>
             <Text>Field ID: {selectedField.id}</Text>
             <Text style={{ marginTop: 8, fontWeight: '600' }}>Field Data:</Text>
-            {selectedFieldData.length === 0 && <Text>No field data yet.</Text>}
             {selectedFieldData.map(fd => (
               <View key={fd.id} style={{ marginBottom: 6 }}>
                 <Text>Herbicide: {fd.herbicide || 'N/A'}</Text>
                 <Text>Pests: {fd.pests_seen?.join(', ') || 'N/A'}</Text>
-                <Text>Recorded: {new Date(fd.created_at).toLocaleString()}</Text>
               </View>
             ))}
             <Button title="Close" onPress={() => { setSelectedField(null); setSelectedFieldData([]); }} />
