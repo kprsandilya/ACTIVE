@@ -48,6 +48,7 @@ export default {
       // Forward env variables to the app
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      newsAPIKey: process.env.EXPO_PUBLIC_NEWS_API_KEY,
     }
   }
 };

@@ -6,7 +6,9 @@
       "@/*": [
         "./*"
       ]
-    }
+    },
+    "resolveJsonModule": true,
+    "esModuleInterop": true
   },
   "include": [
     "**/*.ts",
@@ -14,4 +16,5 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
 , "app.config.js"  ]
+
 }
