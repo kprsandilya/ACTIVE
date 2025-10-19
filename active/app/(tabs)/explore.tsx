@@ -67,7 +67,7 @@ const CommunityScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Text style={styles.sectionHeader}>Community Pesticide Exchange 👨‍🌾</Text>
+      <Text style={styles.sectionHeader}>Community Product Review</Text>
 
       {/* Start content directly under shared top bar */}
       {loading ? (

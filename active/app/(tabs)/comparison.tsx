@@ -144,7 +144,7 @@ const ComparisonScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + HEADER_CONTENT_OFFSET }]}>
-      <Text style={styles.mainHeader}>Pesticide Comparison Tool ⚖️</Text>
+      <Text style={styles.mainHeader}>Pesticide Comparison Tool</Text>
 
       <View style={styles.selectorRow}>
         <SearchableProductSelector
