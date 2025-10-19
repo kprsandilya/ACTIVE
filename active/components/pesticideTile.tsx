@@ -11,6 +11,9 @@ interface PesticideTileProps {
 const PesticideTile: React.FC<PesticideTileProps> = ({ pesticide, onPress }) => {
   const isSuggested = pesticide.averageRating != null && pesticide.averageRating >= 4.5;
 
+  const randomNumber = Math.floor(Math.random() * 100);
+
+
   return (
     <TouchableOpacity style={styles.tile} onPress={onPress}>
       <View style={styles.header}>
@@ -29,10 +32,19 @@ const PesticideTile: React.FC<PesticideTileProps> = ({ pesticide, onPress }) => 
         <Text style={styles.infoLabel}>Suggested Crop:</Text>
         <Text style={styles.infoValue}>{pesticide.suggested_crop}</Text>
       </View>
+
       {isSuggested && (
         <Text style={styles.suggestedLabel}>Suggested Product</Text>
       )}
+
+      {/* Trust Circle Badge */}
+      <View style={styles.trustBadgeContainer}>
+        <View style={styles.trustCircle}>
+          <Text style={styles.trustNumber}>{randomNumber}</Text>
+        </View>
+      </View>
     </TouchableOpacity>
+
   );
 };
 
@@ -96,7 +108,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-  }
+  },
+  // ---------------- Trust Badge ----------------
+  trustBadgeContainer: {
+    position: 'absolute',
+    top: 50,
+    right: 8,
+    alignItems: 'center',
+  },
+  trustCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#096b11ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trustNumber: {
+    fontWeight: 'bold',
+    fontSize: 16,
+    color: '#fff',
+  },
+  trustStar: {
+    marginTop: 2,
+  },
 });
+
 
 export default PesticideTile;

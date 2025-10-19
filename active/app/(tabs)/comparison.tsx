@@ -79,9 +79,6 @@ const ComparisonScreen: React.FC = () => {
   const product1 = pesticides.find(p => p.id === selectedId1);
   const product2 = pesticides.find(p => p.id === selectedId2);
 
-  const product1Ingredients = product1?.active_ingredients ?? [];
-  const product2Ingredients = product2?.active_ingredients ?? [];
-
   const [similarityScore, setSimilarityScore] = useState<number | null>(null);
 
   useEffect(() => {
