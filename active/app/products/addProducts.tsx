@@ -3,20 +3,28 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert 
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
+import DropDownPicker from 'react-native-dropdown-picker';
+import { supabase } from '../../src/lib/supabase'; // make sure this points to your initialized supabase client
 
 const AddProductScreen: React.FC = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
+
   const [name, setName] = useState('');
   const [manufacturer, setManufacturer] = useState('');
-  const [type, setType] = useState<'Herbicide' | 'Insecticide' | 'Fungicide' | ''>('');
+  const [type, setType] = useState('');
   const [activeIngredients, setActiveIngredients] = useState('');
   const [suggestedCrop, setSuggestedCrop] = useState('');
   const [description, setDescription] = useState('');
 
-  const handleSubmit = () => {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState([
+    { label: 'Herbicide', value: 'Herbicide' },
+    { label: 'Insecticide', value: 'Insecticide' },
+    { label: 'Fungicide', value: 'Fungicide' },
+  ]);
+
+  const handleSubmit = async () => {
     if (!name || !manufacturer || !type || !activeIngredients || !suggestedCrop || !description) {
       Alert.alert('Missing Fields', 'Please fill out all product information fields.');
       return;
@@ -26,23 +34,27 @@ const AddProductScreen: React.FC = () => {
       name,
       manufacturer,
       type,
-      activeIngredients: activeIngredients.split(',').map(s => s.trim()),
-      suggestedCrop,
+      active_ingredients: activeIngredients.split(',').map(s => s.trim()),
+      suggested_crop: suggestedCrop,
       description,
     };
 
-    console.log('New Product Submission:', newProductData);
+    const { data, error } = await supabase.from('pesticides').insert([newProductData]);
+
+    if (error) {
+      console.error('Supabase Insert Error:', error);
+      Alert.alert('Error', 'Failed to submit product. Please try again.');
+      return;
+    }
+
+    console.log('New Product Submission:', data);
     Alert.alert('Product Added for Review', 'Thank you! Your product submission will be reviewed by the community.');
-    
     router.back();
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Removed custom header and back button. Native stack header handles this now. */}
-
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        
         <Text style={styles.inputLabel}>Product Name</Text>
         <TextInput
           style={styles.textInput}
@@ -60,17 +72,19 @@ const AddProductScreen: React.FC = () => {
         />
 
         <Text style={styles.inputLabel}>Type (Herbicide, Insecticide, Fungicide)</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={type}
-            onValueChange={(itemValue) => setType(itemValue as 'Herbicide' | 'Insecticide' | 'Fungicide' | '')}
-            style={styles.picker}
-          >
-            <Picker.Item label="Select Product Type" value="" color="#999" />
-            <Picker.Item label="Herbicide" value="Herbicide" />
-            <Picker.Item label="Insecticide" value="Insecticide" />
-            <Picker.Item label="Fungicide" value="Fungicide" />
-          </Picker>
+        <View style={{ zIndex: 1000, marginBottom: 10 }}>
+          <DropDownPicker
+            open={open}
+            value={type}
+            items={items}
+            setOpen={setOpen}
+            setValue={setType}
+            setItems={setItems}
+            placeholder="Select Product Type"
+            style={{ borderColor: '#BDC3C7', backgroundColor: '#fff' }}
+            dropDownContainerStyle={{ borderColor: '#BDC3C7', backgroundColor: '#fff' }}
+            listMode="SCROLLVIEW" // avoids virtualized list conflict
+          />
         </View>
 
         <Text style={styles.inputLabel}>Active Ingredients (Comma Separated)</Text>
@@ -102,59 +116,18 @@ const AddProductScreen: React.FC = () => {
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
           <Text style={styles.submitButtonText}>Submit Product</Text>
         </TouchableOpacity>
-
       </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F7F9FB',
-  },
-  scrollContent: {
-    padding: 15,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#34495E',
-    marginTop: 15,
-    marginBottom: 5,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#BDC3C7',
-    borderRadius: 6,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#BDC3C7',
-    borderRadius: 6,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-  },
-  picker: {
-    height: 50,
-    width: '100%',
-  },
-  submitButton: {
-    backgroundColor: '#2ECC71',
-    padding: 15,
-    borderRadius: 6,
-    alignItems: 'center',
-    marginTop: 30,
-    marginBottom: 20,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 18,
-  },
+  container: { flex: 1, backgroundColor: '#F7F9FB' },
+  scrollContent: { padding: 15 },
+  inputLabel: { fontSize: 16, fontWeight: '600', color: '#34495E', marginTop: 15, marginBottom: 5 },
+  textInput: { borderWidth: 1, borderColor: '#BDC3C7', borderRadius: 6, padding: 12, fontSize: 16, backgroundColor: '#fff' },
+  submitButton: { backgroundColor: '#2ECC71', padding: 15, borderRadius: 6, alignItems: 'center', marginTop: 30, marginBottom: 20 },
+  submitButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 18 },
 });
 
 export default AddProductScreen;

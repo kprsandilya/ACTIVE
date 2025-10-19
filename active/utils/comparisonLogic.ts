@@ -1,38 +1,39 @@
 import { Pesticide } from '../types';
 
 /**
- * Calculates the similarity score (Jaccard Index) between two pesticides
- * based on their active ingredients.
- * Similarity = (|A intersect B| / |A union B|) * 100
- * @param p1 First pesticide product
- * @param p2 Second pesticide product
- * @returns Similarity score as a percentage (0 to 100)
+ * Calculates a comprehensive similarity score between two pesticides
+ * considering active ingredients, type, and suggested crop.
+ * Weighted factors:
+ * - Active ingredients: 70%
+ * - Type: 15%
+ * - Suggested crop: 15%
+ * Returns a percentage between 0 and 100.
  */
 export const calculateSimilarity = (p1: Pesticide, p2: Pesticide): number => {
-  if (!p1.activeIngredients.length || !p2.activeIngredients.length) {
-    return 0;
-  }
-
-  // Normalize ingredients for accurate set comparison
-  const set1 = new Set(p1.activeIngredients.map(ing => ing.trim().toLowerCase()));
-  const set2 = new Set(p2.activeIngredients.map(ing => ing.trim().toLowerCase()));
-
-  let intersectionSize = 0;
+  // --- Active Ingredients Similarity (Jaccard Index) ---
+  const ingredients1 = p1.active_ingredients?.map(i => i.trim().toLowerCase()) || [];
+  const ingredients2 = p2.active_ingredients?.map(i => i.trim().toLowerCase()) || [];
   
-  // Calculate Intersection
-  for (const item of set1) {
-    if (set2.has(item)) {
-      intersectionSize++;
-    }
+  let ingredientScore = 0;
+  if (ingredients1.length && ingredients2.length) {
+    const set1 = new Set(ingredients1);
+    const set2 = new Set(ingredients2);
+    const intersectionSize = [...set1].filter(i => set2.has(i)).length;
+    const unionSize = set1.size + set2.size - intersectionSize;
+    ingredientScore = unionSize === 0 ? 0 : (intersectionSize / unionSize) * 100;
   }
 
-  // Calculate Union Size: |A| + |B| - |A intersect B|
-  const unionSize = set1.size + set2.size - intersectionSize;
+  // --- Type Similarity ---
+  const typeScore = p1.type?.trim().toLowerCase() === p2.type?.trim().toLowerCase() ? 100 : 0;
 
-  if (unionSize === 0) {
-    return 0;
-  }
+  // --- Suggested Crop Similarity ---
+  const cropScore = p1.suggested_crop?.trim().toLowerCase() === p2.suggested_crop?.trim().toLowerCase() ? 100 : 0;
 
-  const similarity = (intersectionSize / unionSize) * 100;
-  return parseFloat(similarity.toFixed(0)); // Round to nearest whole percentage
+  // --- Weighted Combination ---
+  const weightedScore = 
+    ingredientScore * 0.7 + 
+    typeScore * 0.15 + 
+    cropScore * 0.15;
+
+  return parseFloat(weightedScore.toFixed(0)); // Round to nearest integer
 };

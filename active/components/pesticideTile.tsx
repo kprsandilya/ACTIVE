@@ -9,12 +9,15 @@ interface PesticideTileProps {
 }
 
 const PesticideTile: React.FC<PesticideTileProps> = ({ pesticide, onPress }) => {
+  const isSuggested = pesticide.averageRating != null && pesticide.averageRating >= 4.5;
+
   return (
     <TouchableOpacity style={styles.tile} onPress={onPress}>
       <View style={styles.header}>
         <Text style={styles.name}>{pesticide.name}</Text>
         <Text style={styles.ratingText}>
-          {pesticide.averageRating.toFixed(1)} <Ionicons name="star" size={16} color="#FFD700" />
+          {pesticide.averageRating != null ? pesticide.averageRating.toFixed(1) : '-'}{' '}
+          <Ionicons name="star" size={16} color="#FFD700" />
         </Text>
       </View>
       <Text style={styles.manufacturer}>{pesticide.manufacturer}</Text>
@@ -24,9 +27,11 @@ const PesticideTile: React.FC<PesticideTileProps> = ({ pesticide, onPress }) => 
       </View>
       <View style={styles.infoRow}>
         <Text style={styles.infoLabel}>Suggested Crop:</Text>
-        <Text style={styles.infoValue}>{pesticide.suggestedCrop}</Text>
+        <Text style={styles.infoValue}>{pesticide.suggested_crop}</Text>
       </View>
-      <Text style={styles.suggestedLabel}>Suggested Product</Text>
+      {isSuggested && (
+        <Text style={styles.suggestedLabel}>Suggested Product</Text>
+      )}
     </TouchableOpacity>
   );
 };

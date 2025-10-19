@@ -1,32 +1,86 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import PesticideTile from '../../components/pesticideTile';
-import { SAMPLE_PESTICIDES } from '../../types';
+import { Pesticide } from '../../types';
+import { supabase } from '../../src/lib/supabase';
 
 const CommunityScreen: React.FC = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [pesticides, setPesticides] = useState<Pesticide[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const renderItem = ({ item }: { item: typeof SAMPLE_PESTICIDES[0] }) => (
+  const fetchPesticides = async () => {
+    setLoading(true);
+
+    const { data: pesticidesData, error: pesticidesError } = await supabase
+      .from('pesticides')
+      .select('*');
+
+    if (pesticidesError || !pesticidesData) {
+      console.error('Supabase fetch error:', pesticidesError);
+      setLoading(false);
+      return;
+    }
+
+    const { data: commentsData, error: commentsError } = await supabase
+      .from('comments')
+      .select('*');
+
+    if (commentsError) console.error('Supabase comments fetch error:', commentsError);
+
+    const pesticidesWithRatings = pesticidesData.map((p) => {
+      const relatedComments = commentsData?.filter((c) => c.pesticide_id === p.id) || [];
+      const averageRating =
+        relatedComments.length > 0
+          ? relatedComments.reduce((sum, c) => sum + c.rating, 0) / relatedComments.length
+          : null;
+      return { ...p, averageRating };
+    });
+
+    setPesticides(pesticidesWithRatings);
+    setLoading(false);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPesticides();
+    }, [])
+  );
+
+  const renderItem = ({ item }: { item: Pesticide }) => (
     <PesticideTile
       pesticide={item}
-      onPress={() => router.push(`/products/pesticideDetails`)}
+      onPress={() => router.push(`/products/pesticideDetails?id=${item.id}`)}
     />
   );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Text style={styles.headerTitle}>Community Pesticide Exchange 👨‍🌾</Text>
-      
-      <FlatList
-        data={SAMPLE_PESTICIDES}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-      />
+      <Text style={styles.sectionHeader}>Community Pesticide Exchange 👨‍🌾</Text>
+
+      {/* Start content directly under shared top bar */}
+      {loading ? (
+        <ActivityIndicator size="large" color="#2ECC71" style={{}} />
+      ) : (
+        <FlatList
+          data={pesticides}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 10 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       <TouchableOpacity
         style={styles.plusButton}
@@ -39,22 +93,7 @@ const CommunityScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F7F9FB',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ECF0F1',
-    backgroundColor: '#fff',
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
+  container: { flex: 1, backgroundColor: '#F7F9FB' },
   plusButton: {
     position: 'absolute',
     right: 20,
@@ -70,6 +109,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
+  },
+  sectionHeader: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ECF0F1',
+    backgroundColor: '#fff',
+    zIndex: 5, // Ensures header stays above dropdowns if they overlap
   },
 });
 

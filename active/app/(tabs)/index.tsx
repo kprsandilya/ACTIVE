@@ -19,6 +19,10 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 // Define the proportional size for the chat area when it's visible
 const CHAT_FLEX_RATIO = 1; 
 
+// FIX: Define a safe offset height needed because the custom header is transparent.
+// This accounts for the height of the header content (excluding the status bar/insets).
+const HEADER_CONTENT_OFFSET = 65; 
+
 // FIX: Expanded the Sample Responses array
 const SAMPLE_VOICE_RESPONSES = [
   {
@@ -120,8 +124,12 @@ function LandingScreenContent() {
   };
 
   return (
-    // Apply dynamic top padding (insets.top + 16) AND bottom padding (50) to the main container
-    <ThemedView style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: 50 }]}>
+    // FIX: Apply dynamic top padding (insets.top + HEADER_CONTENT_OFFSET) to push content below the transparent header.
+    // The custom header is transparent, meaning content starts at y=0, so we must manually offset it.
+    <ThemedView style={[styles.container, { 
+        paddingTop: insets.top + HEADER_CONTENT_OFFSET, 
+        paddingBottom: 50 
+    }]}>
         {/* App Name at the top */}
         <Text style={styles.appName}>🌿 **ACTIVE**</Text>
 
