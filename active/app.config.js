@@ -1,54 +1,58 @@
-import 'dotenv/config'; // loads variables from .env
+import * as path from 'path';
+import { config as dotenvConfig } from 'dotenv';
+
+// 1️⃣ Load .env from parent directory
+dotenvConfig({ path: path.resolve(__dirname, '../.env') });
 
 export default {
   expo: {
-    name: "active",
-    slug: "active",
-    version: "1.0.0",
-    orientation: "portrait",
-    icon: "./assets/images/icon.png",
-    scheme: "active",
-    userInterfaceStyle: "automatic",
+    name: 'active',
+    slug: 'active',
+    version: '1.0.0',
+    orientation: 'portrait',
+    icon: './assets/images/icon.png',
+    scheme: 'active',
+    userInterfaceStyle: 'automatic',
     newArchEnabled: true,
     ios: {
-      supportsTablet: true
+      supportsTablet: true,
     },
     android: {
       adaptiveIcon: {
-        backgroundColor: "#E6F4FE",
-        foregroundImage: "./assets/images/android-icon-foreground.png",
-        backgroundImage: "./assets/images/android-icon-background.png",
-        monochromeImage: "./assets/images/android-icon-monochrome.png"
+        backgroundColor: '#E6F4FE',
+        foregroundImage: './assets/images/android-icon-foreground.png',
+        backgroundImage: './assets/images/android-icon-background.png',
+        monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       edgeToEdgeEnabled: true,
-      predictiveBackGestureEnabled: false
+      predictiveBackGestureEnabled: false,
     },
     web: {
-      output: "static",
-      favicon: "./assets/images/favicon.png"
+      output: 'static',
+      favicon: './assets/images/favicon.png',
     },
     plugins: [
-      "expo-router",
+      'expo-router',
       [
-        "expo-splash-screen",
+        'expo-splash-screen',
         {
-          image: "./assets/images/splash-icon.png",
+          image: './assets/images/splash-icon.png',
           imageWidth: 200,
-          resizeMode: "contain",
-          backgroundColor: "#ffffff",
-          dark: { backgroundColor: "#000000" }
-        }
-      ]
+          resizeMode: 'contain',
+          backgroundColor: '#ffffff',
+          dark: { backgroundColor: '#000000' },
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,
-      reactCompiler: true
+      reactCompiler: true,
     },
     extra: {
-      // Forward env variables to the app
+      // Forward env variables to the app safely
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       newsAPIKey: process.env.EXPO_PUBLIC_NEWS_API_KEY,
-    }
-  }
+    },
+  },
 };

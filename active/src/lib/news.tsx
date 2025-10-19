@@ -1,42 +1,59 @@
+import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
+import { XMLParser } from 'fast-xml-parser';
 
-export const fetchNewsForRegion = async (region: string) => {
-  const apiKey = 'YOUR_NEWSDATA_API_KEY';
+export const fetchNewsForRegion = async (region: string, forceRefresh = false) => {
   const cacheKey = `news_${region}`;
   const cacheTTL = 12 * 60 * 60 * 1000; // 12 hours
+  const fallbackThumbnail = 'https://via.placeholder.com/150'; // default image
 
-  const NEWS_API_KEY = Constants.expoConfig?.extra?.newsAPIKey;
-
-  // 1️⃣ Try loading cached data
-  const cached = await AsyncStorage.getItem(cacheKey);
-  if (cached) {
-    const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp < cacheTTL) {
-      return data; // return cached data if still valid
+  if (!forceRefresh) {
+    const cached = await AsyncStorage.getItem(cacheKey);
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < cacheTTL) return data;
     }
   }
 
-  // 2️⃣ Fetch new data from NewsData.io
-  const query = encodeURIComponent(`${region} agriculture OR crops OR weather`);
-  const url = `https://newsdata.io/api/1/news?apikey=${NEWS_API_KEY}&q=${region}&category=agriculture&language=en`;
-
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`NewsData API error: ${res.statusText}`);
+    // Google News RSS for agriculture in the region
+    const query = encodeURIComponent(`${region} agriculture`);
+    const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
 
-    const json = await res.json();
-    const articles = json.results || []; // NewsData.io returns `results` array
+    const res = await axios.get(url);
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+    });
+    const json = parser.parse(res.data);
 
-    // 3️⃣ Store in cache
+    const items = json.rss.channel.item || [];
+    const articles = items.map((item: any) => {
+      // Attempt to get the thumbnail
+      let thumbnail = fallbackThumbnail;
+      if (item['media:thumbnail'] && item['media:thumbnail']['@_url']) {
+        thumbnail = item['media:thumbnail']['@_url'];
+      } else if (item['media:content'] && item['media:content']['@_url']) {
+        thumbnail = item['media:content']['@_url'];
+      }
+
+      return {
+        title: item.title,
+        url: item.link,
+        pubDate: item.pubDate,
+        source: item.source || '',
+        thumbnail, // always has a value now
+      };
+    });
+
     await AsyncStorage.setItem(
       cacheKey,
       JSON.stringify({ data: articles, timestamp: Date.now() })
     );
 
     return articles;
-  } catch (error) {
-    console.error('Failed to fetch news:', error);
-    return []; // fallback to empty array
+  } catch (err) {
+    console.error('Failed to fetch news:', err);
+    return [];
   }
 };

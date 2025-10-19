@@ -1,78 +1,142 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, RefreshControl, Linking, ActivityIndicator, StyleSheet } from 'react-native';
-import { supabase } from '../../src/lib/supabase';
-import { getCountryFromPolygon } from '../../src/lib/regionLocator';
+import {
+  View,
+  Text,
+  ScrollView,
+  RefreshControl,
+  Linking,
+  ActivityIndicator,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchNewsForRegion } from '../../src/lib/news';
 
 export default function NewsScreen() {
-  const [articles, setArticles] = useState<Record<string, any[]>>({});
+  const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const getUserId = async (): Promise<string | null> => {
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id ?? null;
-  };
+  const selectedRegion = 'Iowa';
+  const fallbackThumbnail = 'https://via.placeholder.com/150';
 
-  const fetchFieldNews = async (forceRefresh = false) => {
-    setLoading(true);
-    const userId = await getUserId();
-    if (!userId) return;
-
-    const { data: fields, error } = await supabase.from('fields').select('*').eq('user_id', userId);
-    if (error) return console.error(error);
-
-    const result: Record<string, any[]> = {};
-
-    for (const field of fields) {
-      let region = field.region;
-      if (!region) {
-        region = getCountryFromPolygon(field.geom);
-        await supabase.from('fields').update({ region }).eq('id', field.id);
-      }
-
-      const news = await fetchNewsForRegion(region);
-      result[region] = news;
+  const fetchRegionNews = async (forceRefresh = false, isInitial = false) => {
+    if (isInitial) setLoading(true);
+    try {
+      const news = await fetchNewsForRegion(selectedRegion, forceRefresh);
+      setArticles(news);
+    } catch (err) {
+      console.error('Failed to fetch news:', err);
+      setArticles([]);
+    } finally {
+      if (isInitial) setLoading(false);
     }
-
-    setArticles(result);
-    setLoading(false);
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchFieldNews(true);
+    await fetchRegionNews(true);
     setRefreshing(false);
   }, []);
 
   useEffect(() => {
-    fetchFieldNews();
+    fetchRegionNews(false, true);
   }, []);
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" />;
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      {Object.entries(articles).map(([region, newsList]) => (
-        <View key={region} style={styles.section}>
-          <Text style={styles.region}>{region}</Text>
-          {newsList.map((article, i) => (
-            <Text key={i} style={styles.article} onPress={() => Linking.openURL(article.url)}>
-              • {article.title}
-            </Text>
-          ))}
-        </View>
-      ))}
-    </ScrollView>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <Text style={styles.region}>{selectedRegion} Agriculture News</Text>
+        {articles.length === 0 ? (
+          <Text style={styles.noNews}>No news found.</Text>
+        ) : (
+          articles.map((article, i) => {
+            // Normalize thumbnail to a string URL
+            let thumbnailUri = fallbackThumbnail;
+            if (article.thumbnail) {
+              if (typeof article.thumbnail === 'string') {
+                thumbnailUri = article.thumbnail;
+              } else if (article.thumbnail['@_url']) {
+                thumbnailUri = article.thumbnail['@_url'];
+              } else if (article.thumbnail['#text']) {
+                thumbnailUri = article.thumbnail['#text'];
+              }
+            }
+
+            return (
+              <TouchableOpacity
+                key={i}
+                style={styles.card}
+                onPress={() => Linking.openURL(article.url)}
+                activeOpacity={0.8}
+              >
+                <Image source={{ uri: thumbnailUri }} style={styles.thumbnail} />
+                <View style={styles.textContainer}>
+                  <Text style={styles.title}>{article.title}</Text>
+                  <View style={styles.meta}>
+                    <Text style={styles.source}>{article.source}</Text>
+                    <Text style={styles.date}>
+                      {article.pubDate ? new Date(article.pubDate).toLocaleDateString() : ''}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-  section: { marginBottom: 24 },
-  region: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
-  article: { marginBottom: 4, color: '#007AFF' },
+  safeArea: { flex: 1, backgroundColor: '#f9f9f9' },
+  scrollContainer: { padding: 16, paddingBottom: 40 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  region: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+    color: '#333',
+  },
+  noNews: {
+    fontStyle: 'italic',
+    color: '#555',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  card: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  thumbnail: {
+    width: 100,
+    height: 100,
+  },
+  textContainer: { flex: 1, padding: 12, justifyContent: 'space-between' },
+  title: { fontSize: 16, fontWeight: '600', color: '#007AFF' },
+  meta: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  source: { fontSize: 12, color: '#888' },
+  date: { fontSize: 12, color: '#888' },
 });
